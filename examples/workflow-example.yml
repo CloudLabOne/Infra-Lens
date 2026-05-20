@@ -1,44 +1,48 @@
-name: CDK Diff Summary
+# Drop this into .github/workflows/infra-lens.yml in your CDK repo.
+# Required secrets: ANTHROPIC_API_KEY, plus AWS credentials for `cdk diff`.
+
+name: Infra-Lens
 
 on:
   pull_request:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
 
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
 jobs:
-  summarize-diff:
+  summary:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
-      # Setup Node.js for CDK
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      
-      # Install CDK
-      - name: Install CDK
-        run: npm install -g aws-cdk
-      
-      # Configure AWS credentials
-      - name: Configure AWS
-        uses: aws-actions/configure-aws-credentials@v4
+
+      - run: npm ci
+      - run: npm install -g aws-cdk
+
+      - uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
-      
-      # Generate CDK diff
-      - name: Generate CDK Diff
-        run: npx cdk diff --json > cdk-diff.json
-      
-      # Use the CDK Diff Summarizer
-      - name: Summarize CDK Diff
-        uses: Pauly-DData/cdk-diff-summarizer@v1
+
+      # cdk diff has no native JSON output; the bundled script parses text → JSON.
+      - name: Generate CDK diff
+        run: |
+          cdk diff 2>&1 | tee cdk-diff.txt
+          python3 ${{ github.workspace }}/scripts/cdk_diff_to_json.py < cdk-diff.txt > cdk-diff.json
+        continue-on-error: true
+
+      - uses: CloudLabOne/Infra-Lens@v2
         with:
-          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
-          output-format: 'both'
-          model: 'gpt-4'
-          max-tokens: '500' 
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Optional overrides:
+          # model: claude-sonnet-4-6   # cheaper, still very capable
+          # language: nl
+          # fail-on-destructive: 'true'

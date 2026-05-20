@@ -119,4 +119,9 @@ Thumbs.db
 .github/workflows/cdk-diff-summary.yml
 
 # Archive (test files and development artifacts)
-archive/ 
+archive/
+
+# Infra-Lens runtime artifacts
+.infra-lens-cache/
+cdk-diff.json
+cdk-diff.txt
