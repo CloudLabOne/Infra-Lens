@@ -6,7 +6,7 @@ labels: ['enhancement', 'needs-triage']
 assignees: ''
 ---
 
-## 💡 Feature Request
+## Feature Request
 
 ### Problem Statement
 <!-- A clear and concise description of what problem this feature would solve -->

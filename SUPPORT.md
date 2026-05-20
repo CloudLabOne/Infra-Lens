@@ -1,10 +1,10 @@
 # Support Guide for Infra-Lens
 
-## 🆘 Getting Help
+## Getting Help
 
 We're here to help you get the most out of Infra-Lens! Here are the best ways to get support:
 
-### 📋 Support Channels
+### Support Channels
 
 | Channel | Response Time | Best For |
 |---------|---------------|----------|
@@ -12,7 +12,7 @@ We're here to help you get the most out of Infra-Lens! Here are the best ways to
 | **GitHub Discussions** | 12-24 hours | Community help, best practices, examples |
 | **Documentation** | Instant | Setup guides, configuration, troubleshooting |
 
-### 🐛 Reporting Issues
+### Reporting Issues
 
 When reporting an issue, please include:
 
@@ -57,7 +57,7 @@ When reporting an issue, please include:
 ```
 ```
 
-### 💡 Feature Requests
+### Feature Requests
 
 For feature requests, please:
 
@@ -66,7 +66,7 @@ For feature requests, please:
 3. **Provide examples** of how you'd use the feature
 4. **Consider alternatives** that might already exist
 
-### 🔧 Common Issues & Solutions
+### Common Issues & Solutions
 
 #### Issue: "AI API key is required"
 **Solution:**
@@ -92,7 +92,7 @@ For feature requests, please:
 - Verify infrastructure diff file format is valid JSON
 - Review action logs for specific errors
 
-### 📚 Documentation
+### Documentation
 
 - **[Quick Start Guide](README.md#quick-start)**
 - **[Configuration Options](README.md#inputs)**
@@ -122,14 +122,14 @@ Check our [examples directory](examples/) for:
 - Advanced use cases
 - Integration patterns
 
-### 📞 Contact Information
+### Contact Information
 
 - **GitHub Issues**: [Create an issue](https://github.com/CloudLabOne/Infra-Lens/issues)
 - **GitHub Discussions**: [Join the discussion](https://github.com/CloudLabOne/Infra-Lens/discussions)
 - **Email**: support@yourdomain.com
 - **Documentation**: [Full docs](https://github.com/CloudLabOne/Infra-Lens#readme)
 
-### ⏰ Response Times
+### Response Times
 
 - **Critical Issues**: 4-8 hours
 - **Bug Reports**: 24-48 hours

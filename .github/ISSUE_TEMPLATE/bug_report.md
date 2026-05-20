@@ -6,7 +6,7 @@ labels: ['bug', 'needs-triage']
 assignees: ''
 ---
 
-## 🐛 Bug Report
+## Bug Report
 
 **Action Version:** [e.g., v1.0.0]
 **GitHub Actions Runner:** [e.g., ubuntu-latest]
