@@ -1,291 +1,168 @@
-"""
-GitHub service for CDK Diff Summarizer.
-Handles GitHub API interactions and output formatting.
-"""
+"""GitHub posting + output formatting for Infra-Lens."""
 
-import os
 import json
+import os
 import time
-from typing import Dict, Any, Optional, List
+from typing import Any, Dict, Optional
+
 from github import Github
+
 from config import Config, OutputFormat
 
 
 class GitHubService:
-    """Handles GitHub API interactions and output formatting."""
-    
+    """Posts summaries to PR comments / issues and writes Action outputs."""
+
     def __init__(self, config: Config):
         self.config = config
         self.github_config = config.github
-        self.client = self._setup_client() if self.github_config else None
-    
-    def _setup_client(self) -> Github:
-        """Setup GitHub client."""
-        return Github(self.github_config.token)
-    
-    def post_summary(self, summary: str, output_format: OutputFormat) -> Optional[int]:
-        """Post summary to GitHub based on output format."""
-        if not self.client:
-            print("::warning::GitHub client not available")
+        self.client = Github(self.github_config.token) if self.github_config else None
+
+    def post_summary(self, summary: str) -> Optional[int]:
+        """Post the summary based on post_comment / create_issue flags.
+
+        Returns the PR/issue number that received the comment, if any.
+        """
+        if not self.client or not self.github_config:
             return None
-        
+
         try:
-            # Get repository and event data
             repo = self.client.get_repo(self.github_config.repository)
             event_data = self._get_event_data()
-            
-            if not event_data:
-                print("::warning::Could not get event data")
-                return None
-            
-            issue_number = None
-            
-            # Handle different output formats
-            if output_format in [OutputFormat.COMMENT, OutputFormat.BOTH]:
-                issue_number = self._post_comment(repo, event_data, summary)
-            
-            if output_format in [OutputFormat.ISSUE, OutputFormat.BOTH]:
-                if not issue_number:  # Only create issue if no comment was posted
-                    issue_number = self._create_issue(repo, summary)
-            
-            return issue_number
-            
+            pr_number = self._get_pr_number(event_data) if event_data else None
+
+            posted_to = None
+
+            if self.github_config.post_comment and pr_number:
+                try:
+                    pr = repo.get_pull(int(pr_number))
+                    pr.create_issue_comment(summary)
+                    print(f"::notice::Posted summary as comment on PR #{pr_number}")
+                    posted_to = pr_number
+                except Exception as e:
+                    print(f"::error::Failed to comment on PR #{pr_number}: {e}")
+
+            if self.github_config.create_issue and posted_to is None:
+                try:
+                    title = (
+                        f"Infra-Lens summary — {time.strftime('%Y-%m-%d %H:%M UTC')}"
+                    )
+                    issue = repo.create_issue(title=title, body=summary)
+                    print(f"::notice::Created issue #{issue.number}")
+                    posted_to = issue.number
+                except Exception as e:
+                    print(f"::error::Failed to create issue: {e}")
+
+            if posted_to is None and not (
+                self.github_config.post_comment or self.github_config.create_issue
+            ):
+                print("::notice::Both post-comment and create-issue are disabled")
+
+            return posted_to
+
         except Exception as e:
-            print(f"::error::Failed to post to GitHub: {str(e)}")
+            print(f"::error::Failed to post to GitHub: {e}")
             return None
-    
+
     def _get_event_data(self) -> Optional[Dict[str, Any]]:
-        """Get GitHub event data."""
-        if not self.github_config.event_path:
+        if not self.github_config or not self.github_config.event_path:
             return None
-        
         try:
-            with open(self.github_config.event_path, 'r') as f:
+            with open(self.github_config.event_path, "r") as f:
                 return json.load(f)
         except Exception as e:
-            print(f"::error::Failed to read event data: {str(e)}")
+            print(f"::warning::Could not read event payload: {e}")
             return None
-    
-    def _post_comment(self, repo, event_data: Dict[str, Any], summary: str) -> Optional[int]:
-        """Post comment to existing PR or issue."""
-        pr_number = self._get_pr_number(event_data)
-        
-        if pr_number:
-            try:
-                print(f"::notice::Posting comment to PR #{pr_number}")
-                pr = repo.get_pull(int(pr_number))
-                comment = pr.create_issue_comment(summary)
-                print("::notice::Successfully posted comment to PR")
-                return pr_number
-            except Exception as e:
-                print(f"::error::Failed to post comment to PR: {str(e)}")
-                return None
-        else:
-            print("::notice::No PR found for commenting")
-            return None
-    
-    def _create_issue(self, repo, summary: str) -> Optional[int]:
-        """Create a new issue with the summary."""
-        try:
-            print("::notice::Creating new issue")
-            
-            issue_title = f"CDK Infrastructure Changes Summary - {time.strftime('%Y-%m-%d %H:%M')}"
-            issue_body = self._format_issue_body(summary)
-            
-            issue = repo.create_issue(title=issue_title, body=issue_body)
-            print(f"::notice::Successfully created issue #{issue.number}")
-            
-            return issue.number
-            
-        except Exception as e:
-            print(f"::error::Failed to create issue: {str(e)}")
-            return None
-    
+
     def _get_pr_number(self, event_data: Dict[str, Any]) -> Optional[int]:
-        """Extract PR number from event data."""
-        # Method 1: Direct pull_request event
-        if 'pull_request' in event_data:
-            return event_data['pull_request']['number']
-        
-        # Method 2: Issue event with pull_request
-        if 'issue' in event_data and event_data.get('issue', {}).get('pull_request'):
-            return event_data['issue']['number']
-        
-        # Method 3: Try to get from environment variable
-        pr_number = os.getenv('GITHUB_PR_NUMBER')
-        if pr_number:
-            try:
-                return int(pr_number)
-            except ValueError:
-                pass
-        
+        if "pull_request" in event_data:
+            return event_data["pull_request"]["number"]
+        if event_data.get("issue", {}).get("pull_request"):
+            return event_data["issue"]["number"]
+        env_pr = os.getenv("GITHUB_PR_NUMBER")
+        if env_pr and env_pr.isdigit():
+            return int(env_pr)
         return None
-    
-    def _format_issue_body(self, summary: str) -> str:
-        """Format the issue body."""
-        return f"""## CDK Infrastructure Changes Summary
 
-{summary}
-
----
-*This summary was automatically generated by the CDK Diff Summarizer action.*"""
-    
     def set_output(self, name: str, value: str):
-        """Set GitHub Action output."""
-        if not self.github_config:
+        """Write to $GITHUB_OUTPUT using the heredoc form (supports multi-line)."""
+        if not self.github_config or not self.github_config.output_path:
             return
-        
-        # Escape newlines and special characters for GitHub Actions output
-        escaped_value = value.replace('\n', '%0A').replace('\r', '%0D')
-        
         try:
-            with open(self.github_config.output_path, 'a') as f:
-                f.write(f"{name}={escaped_value}\n")
+            delimiter = f"ghadelimiter_{int(time.time() * 1000)}"
+            with open(self.github_config.output_path, "a") as f:
+                f.write(f"{name}<<{delimiter}\n{value}\n{delimiter}\n")
         except Exception as e:
-            print(f"::warning::Failed to set output {name}: {str(e)}")
-    
-    def get_repository_info(self) -> Optional[Dict[str, str]]:
-        """Get repository information."""
-        if not self.client:
-            return None
-        
-        try:
-            repo = self.client.get_repo(self.github_config.repository)
-            return {
-                'name': repo.name,
-                'full_name': repo.full_name,
-                'description': repo.description or '',
-                'url': repo.html_url,
-                'default_branch': repo.default_branch
-            }
-        except Exception as e:
-            print(f"::error::Failed to get repository info: {str(e)}")
-            return None
-    
-    def get_pull_request_info(self) -> Optional[Dict[str, Any]]:
-        """Get pull request information if available."""
-        if not self.client:
-            return None
-        
-        event_data = self._get_event_data()
-        if not event_data:
-            return None
-        
-        pr_number = self._get_pr_number(event_data)
-        if not pr_number:
-            return None
-        
-        try:
-            repo = self.client.get_repo(self.github_config.repository)
-            pr = repo.get_pull(int(pr_number))
-            
-            return {
-                'number': pr.number,
-                'title': pr.title,
-                'body': pr.body or '',
-                'state': pr.state,
-                'created_at': pr.created_at.isoformat(),
-                'updated_at': pr.updated_at.isoformat(),
-                'user': pr.user.login,
-                'head_branch': pr.head.ref,
-                'base_branch': pr.base.ref,
-                'url': pr.html_url
-            }
-        except Exception as e:
-            print(f"::error::Failed to get PR info: {str(e)}")
-            return None
+            print(f"::warning::Failed to set output {name}: {e}")
 
 
 class OutputFormatter:
-    """Handles different output formats."""
-    
+    """Renders the summary as markdown / JSON / HTML."""
+
     @staticmethod
-    def format_markdown(summary: str, metadata: Dict[str, Any] = None) -> str:
-        """Format summary as markdown."""
-        if not metadata:
-            metadata = {}
-        
-        formatted = summary
-        
-        # Add metadata if provided
-        if metadata:
-            formatted += "\n\n---\n"
-            formatted += "**Generated by:** CDK Diff Summarizer Action\n"
-            
-            if 'model' in metadata:
-                formatted += f"**Model:** {metadata['model']}\n"
-            if 'timestamp' in metadata:
-                formatted += f"**Generated:** {metadata['timestamp']}\n"
-            if 'repository' in metadata:
-                formatted += f"**Repository:** {metadata['repository']}\n"
-        
-        return formatted
-    
-    @staticmethod
-    def format_json(summary: str, metadata: Dict[str, Any] = None) -> str:
-        """Format summary as JSON."""
-        if not metadata:
-            metadata = {}
-        
-        data = {
-            'summary': summary,
-            'metadata': metadata,
-            'format': 'json',
-            'generated_at': time.strftime('%Y-%m-%d %H:%M:%S UTC')
-        }
-        
-        return json.dumps(data, indent=2)
-    
-    @staticmethod
-    def format_html(summary: str, metadata: Dict[str, Any] = None) -> str:
-        """Format summary as HTML."""
-        if not metadata:
-            metadata = {}
-        
-        # Convert markdown to basic HTML
-        html = summary.replace('\n\n', '</p><p>')
-        html = html.replace('\n', '<br>')
-        html = f"<p>{html}</p>"
-        
-        # Add metadata
-        if metadata:
-            html += "<hr><p><strong>Generated by:</strong> CDK Diff Summarizer Action<br>"
-            
-            if 'model' in metadata:
-                html += f"<strong>Model:</strong> {metadata['model']}<br>"
-            if 'timestamp' in metadata:
-                html += f"<strong>Generated:</strong> {metadata['timestamp']}<br>"
-            if 'repository' in metadata:
-                html += f"<strong>Repository:</strong> {metadata['repository']}<br>"
-            
-            html += "</p>"
-        
-        return f"""
-<!DOCTYPE html>
-<html>
-<head>
-    <title>CDK Infrastructure Changes Summary</title>
-    <style>
-        body {{ font-family: Arial, sans-serif; margin: 40px; }}
-        h1, h2, h3 {{ color: #333; }}
-        table {{ border-collapse: collapse; width: 100%; }}
-        th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
-        th {{ background-color: #f2f2f2; }}
-        hr {{ border: none; border-top: 1px solid #ddd; margin: 20px 0; }}
-    </style>
-</head>
-<body>
-    <h1>CDK Infrastructure Changes Summary</h1>
-    {html}
-</body>
-</html>"""
-    
-    @staticmethod
-    def format_output(summary: str, output_format: OutputFormat, metadata: Dict[str, Any] = None) -> str:
-        """Format summary based on output format."""
+    def format_output(
+        summary: str,
+        output_format: OutputFormat,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        metadata = metadata or {}
         if output_format == OutputFormat.JSON:
-            return OutputFormatter.format_json(summary, metadata)
-        elif output_format == OutputFormat.HTML:
-            return OutputFormatter.format_html(summary, metadata)
-        else:
-            return OutputFormatter.format_markdown(summary, metadata) 
+            return OutputFormatter._json(summary, metadata)
+        if output_format == OutputFormat.HTML:
+            return OutputFormatter._html(summary, metadata)
+        return OutputFormatter._markdown(summary, metadata)
+
+    @staticmethod
+    def _markdown(summary: str, metadata: Dict[str, Any]) -> str:
+        footer_parts = []
+        if "model" in metadata:
+            footer_parts.append(f"`{metadata['model']}`")
+        if "timestamp" in metadata:
+            footer_parts.append(metadata["timestamp"])
+        footer = " · ".join(footer_parts)
+        if footer:
+            return (
+                f"{summary}\n\n"
+                f"<sub>Generated by [Infra-Lens](https://github.com/CloudLabOne/Infra-Lens) "
+                f"· {footer}</sub>"
+            )
+        return summary
+
+    @staticmethod
+    def _json(summary: str, metadata: Dict[str, Any]) -> str:
+        return json.dumps(
+            {
+                "summary": summary,
+                "metadata": metadata,
+                "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            },
+            indent=2,
+        )
+
+    @staticmethod
+    def _html(summary: str, metadata: Dict[str, Any]) -> str:
+        """Minimal HTML wrapper. Caller is responsible for converting markdown
+        to HTML if richer rendering is needed — naive replace was producing
+        broken markup, so we wrap the raw markdown in a <pre> block instead.
+        """
+        import html as _html
+
+        escaped = _html.escape(summary)
+        model = _html.escape(str(metadata.get("model", "")))
+        timestamp = _html.escape(str(metadata.get("timestamp", "")))
+        return (
+            "<!doctype html>\n"
+            "<html><head><meta charset=\"utf-8\">"
+            "<title>Infra-Lens summary</title>"
+            "<style>"
+            "body{font-family:ui-sans-serif,system-ui,-apple-system,sans-serif;"
+            "max-width:760px;margin:2.5rem auto;padding:0 1.25rem;color:#111}"
+            "pre{background:#f6f8fa;padding:1rem;border-radius:8px;"
+            "white-space:pre-wrap;word-wrap:break-word}"
+            "footer{margin-top:2rem;color:#666;font-size:0.85rem}"
+            "</style></head><body>"
+            "<h1>Infra-Lens summary</h1>"
+            f"<pre>{escaped}</pre>"
+            f"<footer>{model} · {timestamp}</footer>"
+            "</body></html>"
+        )

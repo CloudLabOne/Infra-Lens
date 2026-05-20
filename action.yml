@@ -1,60 +1,51 @@
 name: 'Infra-Lens'
-description: 'AI-powered analysis and summarization of infrastructure changes with risk assessment and deployment recommendations'
-author: 'Pauly-DData <paulydriessens@gmail.com>'
+description: 'AI summaries for AWS CDK diffs, posted on every PR. Powered by Claude.'
+author: 'CloudLabOne'
 
 inputs:
-  openai-api-key:
-    description: 'OpenAI API key for generating AI summaries'
+  anthropic-api-key:
+    description: 'Anthropic API key. Get one at console.anthropic.com.'
     required: true
   cdk-diff-file:
-    description: 'Path to the CDK diff JSON file'
+    description: 'Path to the CDK diff JSON file. See README for the expected format.'
     required: false
     default: 'cdk-diff.json'
   output-format:
-    description: 'Output format for the summary'
+    description: 'Render format for the summary.'
     required: false
     default: 'markdown'
-    type: choice
-    options:
-      - markdown
-      - json
-      - html
   language:
-    description: 'Language for the summary'
+    description: 'Summary language (en, nl).'
     required: false
     default: 'en'
-    type: choice
-    options:
-      - en
-      - nl
   model:
-    description: 'OpenAI model to use for summarization'
+    description: 'Claude model ID. Defaults to claude-opus-4-7.'
     required: false
-    default: 'gpt-4'
+    default: 'claude-opus-4-7'
   max-tokens:
-    description: 'Maximum tokens for the summary'
+    description: 'Maximum tokens in the summary.'
     required: false
-    default: '500'
+    default: '1024'
   fail-on-destructive:
-    description: 'Fail the workflow if destructive changes are detected'
+    description: 'Fail the workflow if destructive changes (destroy/replace) are detected.'
     required: false
     default: 'false'
   post-comment:
-    description: 'Post summary as PR comment'
+    description: 'Post the summary as a PR comment.'
     required: false
     default: 'true'
   create-issue:
-    description: 'Create GitHub issue if no PR is found'
+    description: 'If there is no PR, create an issue with the summary instead.'
     required: false
     default: 'false'
 
 outputs:
   summary:
-    description: 'The generated AI summary'
-  risk-score:
-    description: 'Risk assessment score (0-100)'
+    description: 'The generated summary.'
   success:
-    description: 'Whether the action completed successfully'
+    description: 'true on success, false on failure.'
+  issue-number:
+    description: 'PR or issue number that received the comment, if any.'
 
 runs:
   using: 'composite'
@@ -62,27 +53,26 @@ runs:
     - name: Setup Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.9'
+        python-version: '3.11'
         cache: 'pip'
 
     - name: Install dependencies
       shell: bash
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        pip install -r ${{ github.action_path }}/requirements.txt
 
-    - name: Run CDK Diff Summarizer
+    - name: Run Infra-Lens
       shell: bash
       working-directory: ${{ github.workspace }}
-      run: |
-        python ${{ github.action_path }}/src/main.py
+      run: python ${{ github.action_path }}/src/main.py
       env:
-        OPENAI_API_KEY: ${{ inputs.openai-api-key }}
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
         CDK_DIFF_FILE: ${{ inputs.cdk-diff-file }}
         OUTPUT_FORMAT: ${{ inputs.output-format }}
         LANGUAGE: ${{ inputs.language }}
-        MODEL: ${{ inputs.model }}
-        MAX_TOKENS: ${{ inputs.max-tokens }}
+        AI_MODEL: ${{ inputs.model }}
+        AI_MAX_TOKENS: ${{ inputs.max-tokens }}
         FAIL_ON_DESTRUCTIVE: ${{ inputs.fail-on-destructive }}
         POST_COMMENT: ${{ inputs.post-comment }}
         CREATE_ISSUE: ${{ inputs.create-issue }}
@@ -90,5 +80,5 @@ runs:
         GITHUB_EVENT_PATH: ${{ github.event_path }}
 
 branding:
-  icon: 'cloud'
-  color: 'blue' 
+  icon: 'eye'
+  color: 'purple'

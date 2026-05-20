@@ -1,128 +1,35 @@
-# Infrastructure Changes Summary
+## Infrastructure changes
 
-## Executive Summary
 {% if changes.summary.total_changes > 0 %}
-This deployment includes **{{ changes.summary.total_changes }}** infrastructure changes across **{{ statistics.total_stacks }}** stacks.
+**{{ changes.summary.total_changes }}** changes across **{{ statistics.total_stacks }}** stack{% if statistics.total_stacks != 1 %}s{% endif %} · **Risk:** {{ statistics.risk_level | format_risk_level }}
 
-**Changes Breakdown:**
-- ➕ **{{ changes.summary.creates }}** new resources
-- 🔄 **{{ changes.summary.updates }}** updated resources
-- 🗑️ **{{ changes.summary.deletes }}** deleted resources
-- 🔄 **{{ changes.summary.replaces }}** replaced resources
-
-**Risk Level:** {{ statistics.risk_level | format_risk_level }}
-
+| Action | Count |
+|---|---:|
+| Create | {{ changes.summary.creates }} |
+| Update | {{ changes.summary.updates }} |
+| Delete | {{ changes.summary.deletes }} |
+| Replace | {{ changes.summary.replaces }} |
 {% else %}
-No infrastructure changes detected in this deployment.
+No infrastructure changes detected.
 {% endif %}
-
-## Resource Changes
 
 {% if changes.resources %}
-| Action | Resource Type | Resource Name | Stack |
-|--------|---------------|---------------|-------|
-{% for resource in changes.resources %}
-{% for action in resource.actions %}
-| {{ action | format_action }} | {{ resource.type | format_resource_type }} | `{{ resource.id }}` | `{{ resource.stack }}` |
-{% endfor %}
-{% endfor %}
-{% else %}
-No resource changes detected.
+### Resources
+
+| Action | Type | Logical ID | Stack |
+|---|---|---|---|
+{% for resource in changes.resources %}{% for action in resource.actions %}| {{ action | format_action }} | {{ resource.type | format_resource_type }} | `{{ resource.id }}` | `{{ resource.stack }}` |
+{% endfor %}{% endfor %}
 {% endif %}
 
-## Stack Changes
-
-{% if changes.stacks %}
-{% for stack in changes.stacks %}
-### {{ stack.name }}
-{% if stack.actions %}
-**Stack Actions:** {% for action in stack.actions %}{{ action | format_action }}{% if not loop.last %}, {% endif %}{% endfor %}
-{% endif %}
-
-{% if stack.resources %}
-**Resources:**
-{% for resource in stack.resources %}
-- {% for action in resource.actions %}{{ action | format_action }}{% if not loop.last %} + {% endif %}{% endfor %} {{ resource.type | format_resource_type }}: `{{ resource.id }}`
-{% endfor %}
-{% endif %}
-
-{% endfor %}
-{% else %}
-No stack changes detected.
-{% endif %}
-
-## Security Considerations
-
-{% set security_resources = changes.resources | selectattr('type', 'match', '.*IAM.*|.*KMS.*|.*SecretsManager.*|.*SecurityGroup.*') | list %}
+{% set security_resources = changes.resources | selectattr('type', 'match', 'IAM|KMS|SecretsManager|SecurityGroup') | list %}
 {% if security_resources %}
-**Security-related changes detected:**
+### Security-relevant resources
 
-{% for resource in security_resources %}
-- **{{ resource.type | format_resource_type }}** (`{{ resource.id }}`) in stack `{{ resource.stack }}`
-  {% for action in resource.actions %}- {{ action | format_action }}{% endfor %}
+{% for resource in security_resources %}- `{{ resource.id }}` ({{ resource.type | format_resource_type }}) — {{ resource.actions | map('format_action') | join(', ') }}
 {% endfor %}
-
-⚠️ **Please review these security-related changes carefully before deployment.**
-{% else %}
-No security-related changes detected.
 {% endif %}
-
-## Risk Assessment
-
-**Risk Level:** {{ statistics.risk_level | format_risk_level }}
-
-{% if statistics.risk_level == 'high' %}
-🔴 **High Risk Changes Detected**
-- Multiple high-risk resource types being modified
-- Review all changes thoroughly before deployment
-- Consider staging deployment first
-{% elif statistics.risk_level == 'medium' %}
-🟡 **Medium Risk Changes Detected**
-- Some riskier resource types involved
-- Review changes before deployment
-{% else %}
-🟢 **Low Risk Changes Detected**
-- Standard infrastructure changes
-- Proceed with normal deployment process
-{% endif %}
-
-## Deployment Recommendations
 
 {% if statistics.total_changes > 20 %}
-📋 **Large Deployment Detected**
-- Consider breaking into smaller deployments
-- Monitor deployment progress closely
-- Have rollback plan ready
-{% elif statistics.total_changes > 10 %}
-📋 **Medium Deployment Detected**
-- Review all changes before deployment
-- Monitor deployment progress
-{% else %}
-📋 **Small Deployment Detected**
-- Standard deployment process
-- Quick review recommended
+**Note:** this is a large change set ({{ statistics.total_changes }} resources). Consider splitting into smaller deployments.
 {% endif %}
-
-{% if security_resources %}
-🔒 **Security Review Required**
-- Security-related resources being modified
-- Ensure proper access controls
-- Review IAM policies and permissions
-{% endif %}
-
-## Resource Type Distribution
-
-{% if statistics.resource_types %}
-| Resource Type | Count |
-|---------------|-------|
-{% for resource_type, count in statistics.resource_types.items() %}
-| {{ resource_type | format_resource_type }} | {{ count }} |
-{% endfor %}
-{% endif %}
-
----
-
-**Generated by:** {{ metadata.generator }} v{{ metadata.version }}  
-**Model:** {{ metadata.model }}  
-**Generated:** {{ metadata.timestamp }}  
-**Repository:** {{ metadata.repository }} 

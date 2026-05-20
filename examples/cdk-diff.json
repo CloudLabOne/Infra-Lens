@@ -1,41 +1,49 @@
 {
   "stacks": {
-    "DummyStack": {
+    "ApiStack": {
       "create": true,
       "resources": {
-        "MyBucket": {
-          "create": true,
-          "type": "AWS::S3::Bucket"
+        "ApiGateway": {
+          "type": "AWS::ApiGateway::RestApi",
+          "create": true
         },
-        "MyBucket/Policy": {
-          "create": true,
-          "type": "AWS::S3::BucketPolicy"
+        "ApiGateway/DefaultStage": {
+          "type": "AWS::ApiGateway::Stage",
+          "create": true
         },
-        "MyBucket/AutoDeleteObjectsCustomResource": {
-          "create": true,
-          "type": "Custom::S3AutoDeleteObjects"
+        "OrdersFunction": {
+          "type": "AWS::Lambda::Function",
+          "create": true
         },
-        "Custom::S3AutoDeleteObjectsCustomResourceProvider/Role": {
-          "create": true,
-          "type": "AWS::IAM::Role"
+        "OrdersFunction/ServiceRole": {
+          "type": "AWS::IAM::Role",
+          "create": true
         },
-        "Custom::S3AutoDeleteObjectsCustomResourceProvider/Handler": {
-          "create": true,
-          "type": "AWS::Lambda::Function"
+        "OrdersFunction/ServiceRole/DefaultPolicy": {
+          "type": "AWS::IAM::Policy",
+          "create": true
         },
-        "MyFunction/ServiceRole": {
-          "create": true,
-          "type": "AWS::IAM::Role"
+        "OrdersTable": {
+          "type": "AWS::DynamoDB::Table",
+          "create": true
+        }
+      }
+    },
+    "LegacyStack": {
+      "resources": {
+        "OldQueue": {
+          "type": "AWS::SQS::Queue",
+          "destroy": true
         },
-        "MyFunction/ServiceRole/DefaultPolicy": {
-          "create": true,
-          "type": "AWS::IAM::Policy"
+        "OldQueuePolicy": {
+          "type": "AWS::SQS::QueuePolicy",
+          "destroy": true
         },
-        "MyFunction": {
-          "create": true,
-          "type": "AWS::Lambda::Function"
+        "LegacyBucket": {
+          "type": "AWS::S3::Bucket",
+          "replace": true
         }
       }
     }
   }
-} 
+}

@@ -168,7 +168,7 @@ class CacheManager:
                 'total_size_mb': total_size / (1024 * 1024),
                 'expired_entries': expired_entries,
                 'max_size_bytes': self.max_size_bytes,
-                'max_size_mb': self.max_size_mb / (1024 * 1024),
+                'max_size_mb': self.max_size_bytes / (1024 * 1024),
                 'ttl_hours': self.ttl_seconds / 3600
             }
         except Exception as e:
